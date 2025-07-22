@@ -8,83 +8,106 @@
 <body>
     <script type="text/javascript" charset="UTF-8" src="https://mbwac.dev-mobilus.chat/web/mobi-agent-client-frame-loader.min.js?domainId=iimuratest2"></script>
     <script>
-        const chatBody = document.querySelector('body');
-
-        // シンプルなテキストリンクを挿入する場合
-        const bannerHtml = `<a href="https://example.com" target="_blank">サポートページ</a>`;
-
-
-        chatBody.insertAdjacentHTML('afterbegin', bannerHtml);
-        
-          // チャット小窓の状態を表すフラグ（修正しないでください）
-  /*
-  MobiChatのフレームの状態 (initializing | banner | chat)
-  initializing: 初期化中
-  banner: バナーが表示されている
-  chat: MobiChatが表示されている
-  */
-  let agentStatus = 'initializing';
-
-  //banner
-  const chatBnr = document.getElementById('supportBnr');
-  //closeボタン
-  const chatClose = document.getElementById('supportBnr-close');
-  //banner画像
-  const chatBnrImg = document.getElementById('supportBnr-img');
-
-  function showMobiChat(show) {
-    document.getElementById('konnect-container').style.display = show ? '' : "none";
-  }
-
-  function showBanner(show) {
-    chatBnr.style.display = show ? "block" : "none";
-  }
-
-  chatClose.addEventListener('click', function () {
-    showBanner(false);
-  });
-
-  chatBnrImg.addEventListener('click', function () {
-    switch (agentStatus) {
-      case 'initializing':
-        break;
-
-      case 'banner':
-        // 小窓を起動する
-        MobiAgentClient.toggle(true);
-        break;
-
-      case 'chat':
-        // 小窓を閉じる
-        MobiAgentClient.toggle(false);
-        break;
-    }
-  });
-
-  /*
-  operation == chat => チャット小窓を開く + 起動アイコンを隠す
-  operation == banner => チャット小窓を閉じる + 起動アイコンを表示する
-  */
-  function openFrame(operation) {
-    agentStatus = operation;
-    showBanner(operation === 'banner');
-    showMobiChat(operation === 'chat');
-  }
-
-  MobiAgentClient.on('openFrame', function (data) {
-    openFrame('chat')
-  });
-  MobiAgentClient.on('closeFrame', function (data) {
-    openFrame('banner')
-  });
-  /////////////////////////
         //本体読み込み
     document.addEventListener("DOMContentLoaded", function() {
     MobiAgentClient.init(
         'https://mbwac.dev-mobilus.chat', // server url
         'iimuratest2', // domainId
         {}, // options
-        function(){} // callback
+        function(){
+            // MobiAgentClient初期化後にiframe内の要素を処理
+            setTimeout(() => {
+                const iframe = document.querySelector('iframe');
+                console.log('iframe要素:', iframe);
+                
+                if (iframe) {
+                    // iframeが既に読み込まれている場合の処理
+                    const processIframeContent = () => {
+                        try {
+                            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                            console.log('iframeDoc:', iframeDoc);
+
+                            // 対象の要素を取得
+                            const targetElement = iframeDoc.querySelector('.mbaGuestFrame_trigger_inner_header3');
+                            console.log('対象要素:', targetElement);
+
+                            if (targetElement) {
+                                console.log('対象要素が見つかりました。リンクを作成します。');
+                                
+                                // 既にリンクが追加されていないかチェック
+                                const existingLink = iframeDoc.querySelector('a[href="https://mobilus.co.jp/"]');
+                                if (existingLink) {
+                                    console.log('リンクは既に存在します');
+                                    return;
+                                }
+                                
+                                // <a>タグを作成
+                                const link = iframeDoc.createElement('a');
+                                link.href = 'https://mobilus.co.jp/';
+                                link.textContent = 'サポートページ';
+                                link.target = '_blank';
+                                link.style.display = 'block';
+                                link.style.marginTop = '10px';
+                                link.style.color = 'blue';
+                                link.style.textDecoration = 'underline';
+                                
+                                console.log('作成されたリンク:', link);
+
+                                // 対象要素の直後に挿入
+                                if (targetElement.nextSibling) {
+                                    targetElement.parentNode.insertBefore(link, targetElement.nextSibling);
+                                    console.log('nextSiblingの前に挿入しました');
+                                } else {
+                                    targetElement.parentNode.appendChild(link);
+                                    console.log('parentNodeに追加しました');
+                                }
+                                
+                                // 挿入後の確認
+                                console.log('挿入後のparentNode:', targetElement.parentNode);
+                                console.log('iframe内のリンク要素:', iframeDoc.querySelector('a[href="https://mobilus.co.jp/"]'));
+                            } else {
+                                console.warn('iframe内に指定されたクラス名の要素が見つかりませんでした');
+                                console.log('iframe内の全ての要素:', iframeDoc.body ? iframeDoc.body.innerHTML : 'bodyが見つかりません');
+                            }
+                        } catch (error) {
+                            console.error('iframe内容へのアクセスエラー:', error);
+                        }
+                    };
+
+                    // 即座に一度試行
+                    processIframeContent();
+
+                    // iframe内の変更を監視
+                    const observer = new MutationObserver(() => {
+                        processIframeContent();
+                    });
+
+                    // iframe自体の変更を監視
+                    observer.observe(document.body, {
+                        childList: true,
+                        subtree: true
+                    });
+
+                    // iframe内部の監視も設定（可能な場合）
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (iframeDoc && iframeDoc.body) {
+                            observer.observe(iframeDoc.body, {
+                                childList: true,
+                                subtree: true
+                            });
+                        }
+                    } catch (error) {
+                        console.log('iframe内部の監視設定に失敗:', error);
+                    }
+
+                    // loadイベントも念のため設定
+                    iframe.addEventListener('load', processIframeContent);
+                } else {
+                    console.warn('iframe要素が見つかりませんでした');
+                }
+            }, 1000); // 1秒待機してからiframe要素を探す
+        } // callback
     );
     });
     </script>
