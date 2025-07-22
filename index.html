@@ -53,13 +53,13 @@
             console.log('MobiAgentClient初期化完了');
             // MobiAgentClient初期化後にiframe内の要素を処理
             // LIFF環境では読み込みに時間がかかる可能性があるため、より長い待機時間を設定
-            const waitTime = isLIFF ? 5000 : 1000;
+            const waitTime = isLIFF ? 2000 : 500; // 初期待機時間を短縮
             console.log(`${waitTime}ms待機後にiframe処理を開始します`);
             
             setTimeout(() => {
                 // ポーリングでiframeの出現を待つ
                 let attempts = 0;
-                const maxAttempts = isLIFF ? 30 : 20; // LIFF環境では更に多くの試行
+                const maxAttempts = isLIFF ? 40 : 30; // 試行回数は増やす
                 
                 const checkForIframe = () => {
                     attempts++;
@@ -71,16 +71,16 @@
                     if (iframe) {
                         setupIframeProcessing(iframe);
                     } else if (attempts < maxAttempts) {
-                        console.log('iframe要素が見つかりません。1秒後に再試行します。');
-                        setTimeout(checkForIframe, 1000);
+                        console.log('iframe要素が見つかりません。500ms後に再試行します。');
+                        setTimeout(checkForIframe, 500); // ポーリング間隔を短縮
                     } else {
                         console.warn('最大試行回数に達しました。iframe要素が見つかりませんでした。');
                         // LIFF環境では手動で再初期化を促す
                         if (isLIFF) {
-                            console.log('LIFF環境での読み込み失敗。5秒後に再初期化を試行します。');
+                            console.log('LIFF環境での読み込み失敗。3秒後に再初期化を試行します。');
                             setTimeout(() => {
                                 initMobiAgent();
-                            }, 5000);
+                            }, 3000);
                         }
                     }
                 };
@@ -93,6 +93,9 @@
     
     function setupIframeProcessing(iframe) {
         console.log('iframe処理セットアップ開始');
+        
+        let contentCheckAttempts = 0;
+        const maxContentAttempts = 50; // iframe内コンテンツのチェック回数を増加
         
         // iframeが既に読み込まれている場合の処理
         const processIframeContent = () => {
@@ -111,7 +114,7 @@
                     const existingLink = iframeDoc.querySelector('a[href="https://mobilus.co.jp/"]');
                     if (existingLink) {
                         console.log('リンクは既に存在します');
-                        return;
+                        return true; // 処理完了を示す
                     }
                     
                     // <a>タグを作成
@@ -138,44 +141,72 @@
                     // 挿入後の確認
                     console.log('挿入後のparentNode:', targetElement.parentNode);
                     console.log('iframe内のリンク要素:', iframeDoc.querySelector('a[href="https://mobilus.co.jp/"]'));
+                    return true; // 処理完了を示す
                 } else {
-                    console.warn('iframe内に指定されたクラス名の要素が見つかりませんでした');
-                    console.log('iframe内の全ての要素:', iframeDoc.body ? iframeDoc.body.innerHTML : 'bodyが見つかりません');
+                    contentCheckAttempts++;
+                    console.log(`iframe内に指定されたクラス名の要素が見つかりませんでした (${contentCheckAttempts}/${maxContentAttempts})`);
+                    
+                    if (contentCheckAttempts < maxContentAttempts) {
+                        // 短い間隔で再チェック
+                        setTimeout(processIframeContent, 200);
+                        return false; // 処理継続中を示す
+                    } else {
+                        console.warn('最大試行回数に達しました。iframe内のコンテンツが見つかりませんでした。');
+                        console.log('iframe内の全ての要素:', iframeDoc.body ? iframeDoc.body.innerHTML : 'bodyが見つかりません');
+                        return false;
+                    }
                 }
             } catch (error) {
                 console.error('iframe内容へのアクセスエラー:', error);
+                contentCheckAttempts++;
+                if (contentCheckAttempts < maxContentAttempts) {
+                    setTimeout(processIframeContent, 200);
+                    return false;
+                }
+                return false;
             }
         };
 
         // 即座に一度試行
-        processIframeContent();
+        const initialResult = processIframeContent();
+        
+        // 初回で成功しなかった場合のみ、追加の監視を設定
+        if (!initialResult) {
+            // iframe内の変更を監視
+            const observer = new MutationObserver(() => {
+                const result = processIframeContent();
+                if (result) {
+                    observer.disconnect(); // 成功したら監視を停止
+                }
+            });
 
-        // iframe内の変更を監視
-        const observer = new MutationObserver(() => {
-            processIframeContent();
-        });
+            // iframe自体の変更を監視
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
 
-        // iframe自体の変更を監視
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
-        // iframe内部の監視も設定（可能な場合）
-        try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (iframeDoc && iframeDoc.body) {
-                observer.observe(iframeDoc.body, {
-                    childList: true,
-                    subtree: true
-                });
+            // iframe内部の監視も設定（可能な場合）
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (iframeDoc && iframeDoc.body) {
+                    observer.observe(iframeDoc.body, {
+                        childList: true,
+                        subtree: true
+                    });
+                }
+            } catch (error) {
+                console.log('iframe内部の監視設定に失敗:', error);
             }
-        } catch (error) {
-            console.log('iframe内部の監視設定に失敗:', error);
-        }
 
-        // loadイベントも念のため設定
-        iframe.addEventListener('load', processIframeContent);
+            // loadイベントも念のため設定
+            iframe.addEventListener('load', () => {
+                const result = processIframeContent();
+                if (result) {
+                    observer.disconnect(); // 成功したら監視を停止
+                }
+            });
+        }
     }
     </script>
 </body>
