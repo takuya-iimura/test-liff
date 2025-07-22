@@ -8,108 +8,175 @@
 <body>
     <script type="text/javascript" charset="UTF-8" src="https://mbwac.dev-mobilus.chat/web/mobi-agent-client-frame-loader.min.js?domainId=iimuratest2"></script>
     <script>
+        // LIFF環境の検出
+        const isLIFF = window.liff || navigator.userAgent.includes('Line');
+        console.log('LIFF環境:', isLIFF);
+        console.log('UserAgent:', navigator.userAgent);
+        
         //本体読み込み
     document.addEventListener("DOMContentLoaded", function() {
+        // MobiAgentClientが読み込まれているかチェック
+        if (typeof MobiAgentClient === 'undefined') {
+            console.error('MobiAgentClientが読み込まれていません');
+            // 再度スクリプトを読み込む
+            const script = document.createElement('script');
+            script.src = 'https://mbwac.dev-mobilus.chat/web/mobi-agent-client-frame-loader.min.js?domainId=iimuratest2';
+            script.onload = function() {
+                console.log('MobiAgentClientスクリプトが再読み込みされました');
+                initMobiAgent();
+            };
+            script.onerror = function() {
+                console.error('MobiAgentClientスクリプトの読み込みに失敗しました');
+            };
+            document.head.appendChild(script);
+            return;
+        }
+        
+        initMobiAgent();
+    });
+    
+    function initMobiAgent() {
+        console.log('MobiAgentClient初期化開始');
+        
     MobiAgentClient.init(
         'https://mbwac.dev-mobilus.chat', // server url
         'iimuratest2', // domainId
-        {}, // options
+        {
+            // LIFF環境用の設定を追加
+            allowFullScreen: true,
+            sandbox: 'allow-same-origin allow-scripts allow-popups allow-forms',
+            // LIFF環境での制限に対応
+            enableCrossDomain: true,
+            forceInitialization: true
+        }, // options
         function(){
+            console.log('MobiAgentClient初期化完了');
             // MobiAgentClient初期化後にiframe内の要素を処理
+            // LIFF環境では読み込みに時間がかかる可能性があるため、より長い待機時間を設定
+            const waitTime = isLIFF ? 5000 : 1000;
+            console.log(`${waitTime}ms待機後にiframe処理を開始します`);
+            
             setTimeout(() => {
-                const iframe = document.querySelector('iframe');
-                console.log('iframe要素:', iframe);
+                // ポーリングでiframeの出現を待つ
+                let attempts = 0;
+                const maxAttempts = isLIFF ? 30 : 20; // LIFF環境では更に多くの試行
                 
-                if (iframe) {
-                    // iframeが既に読み込まれている場合の処理
-                    const processIframeContent = () => {
-                        try {
-                            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                            console.log('iframeDoc:', iframeDoc);
-
-                            // 対象の要素を取得
-                            const targetElement = iframeDoc.querySelector('.mbaGuestFrame_trigger_inner_header3');
-                            console.log('対象要素:', targetElement);
-
-                            if (targetElement) {
-                                console.log('対象要素が見つかりました。リンクを作成します。');
-                                
-                                // 既にリンクが追加されていないかチェック
-                                const existingLink = iframeDoc.querySelector('a[href="https://mobilus.co.jp/"]');
-                                if (existingLink) {
-                                    console.log('リンクは既に存在します');
-                                    return;
-                                }
-                                
-                                // <a>タグを作成
-                                const link = iframeDoc.createElement('a');
-                                link.href = 'https://mobilus.co.jp/';
-                                link.textContent = 'サポートページ';
-                                link.target = '_blank';
-                                link.style.display = 'block';
-                                link.style.marginTop = '10px';
-                                link.style.color = 'blue';
-                                link.style.textDecoration = 'underline';
-                                
-                                console.log('作成されたリンク:', link);
-
-                                // 対象要素の直後に挿入
-                                if (targetElement.nextSibling) {
-                                    targetElement.parentNode.insertBefore(link, targetElement.nextSibling);
-                                    console.log('nextSiblingの前に挿入しました');
-                                } else {
-                                    targetElement.parentNode.appendChild(link);
-                                    console.log('parentNodeに追加しました');
-                                }
-                                
-                                // 挿入後の確認
-                                console.log('挿入後のparentNode:', targetElement.parentNode);
-                                console.log('iframe内のリンク要素:', iframeDoc.querySelector('a[href="https://mobilus.co.jp/"]'));
-                            } else {
-                                console.warn('iframe内に指定されたクラス名の要素が見つかりませんでした');
-                                console.log('iframe内の全ての要素:', iframeDoc.body ? iframeDoc.body.innerHTML : 'bodyが見つかりません');
-                            }
-                        } catch (error) {
-                            console.error('iframe内容へのアクセスエラー:', error);
+                const checkForIframe = () => {
+                    attempts++;
+                    console.log(`iframe検索試行 ${attempts}/${maxAttempts}`);
+                    
+                    const iframe = document.querySelector('iframe');
+                    console.log('iframe要素:', iframe);
+                    
+                    if (iframe) {
+                        setupIframeProcessing(iframe);
+                    } else if (attempts < maxAttempts) {
+                        console.log('iframe要素が見つかりません。1秒後に再試行します。');
+                        setTimeout(checkForIframe, 1000);
+                    } else {
+                        console.warn('最大試行回数に達しました。iframe要素が見つかりませんでした。');
+                        // LIFF環境では手動で再初期化を促す
+                        if (isLIFF) {
+                            console.log('LIFF環境での読み込み失敗。5秒後に再初期化を試行します。');
+                            setTimeout(() => {
+                                initMobiAgent();
+                            }, 5000);
                         }
-                    };
-
-                    // 即座に一度試行
-                    processIframeContent();
-
-                    // iframe内の変更を監視
-                    const observer = new MutationObserver(() => {
-                        processIframeContent();
-                    });
-
-                    // iframe自体の変更を監視
-                    observer.observe(document.body, {
-                        childList: true,
-                        subtree: true
-                    });
-
-                    // iframe内部の監視も設定（可能な場合）
-                    try {
-                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                        if (iframeDoc && iframeDoc.body) {
-                            observer.observe(iframeDoc.body, {
-                                childList: true,
-                                subtree: true
-                            });
-                        }
-                    } catch (error) {
-                        console.log('iframe内部の監視設定に失敗:', error);
                     }
-
-                    // loadイベントも念のため設定
-                    iframe.addEventListener('load', processIframeContent);
-                } else {
-                    console.warn('iframe要素が見つかりませんでした');
-                }
-            }, 1000); // 1秒待機してからiframe要素を探す
+                };
+                
+                checkForIframe();
+            }, waitTime);
         } // callback
     );
-    });
+    } // initMobiAgent関数の終了
+    
+    function setupIframeProcessing(iframe) {
+        console.log('iframe処理セットアップ開始');
+        
+        // iframeが既に読み込まれている場合の処理
+        const processIframeContent = () => {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                console.log('iframeDoc:', iframeDoc);
+
+                // 対象の要素を取得
+                const targetElement = iframeDoc.querySelector('.mbaGuestFrame_trigger_inner_header3');
+                console.log('対象要素:', targetElement);
+
+                if (targetElement) {
+                    console.log('対象要素が見つかりました。リンクを作成します。');
+                    
+                    // 既にリンクが追加されていないかチェック
+                    const existingLink = iframeDoc.querySelector('a[href="https://mobilus.co.jp/"]');
+                    if (existingLink) {
+                        console.log('リンクは既に存在します');
+                        return;
+                    }
+                    
+                    // <a>タグを作成
+                    const link = iframeDoc.createElement('a');
+                    link.href = 'https://mobilus.co.jp/';
+                    link.textContent = 'サポートページ';
+                    link.target = '_blank';
+                    link.style.display = 'block';
+                    link.style.marginTop = '10px';
+                    link.style.color = 'blue';
+                    link.style.textDecoration = 'underline';
+                    
+                    console.log('作成されたリンク:', link);
+
+                    // 対象要素の直後に挿入
+                    if (targetElement.nextSibling) {
+                        targetElement.parentNode.insertBefore(link, targetElement.nextSibling);
+                        console.log('nextSiblingの前に挿入しました');
+                    } else {
+                        targetElement.parentNode.appendChild(link);
+                        console.log('parentNodeに追加しました');
+                    }
+                    
+                    // 挿入後の確認
+                    console.log('挿入後のparentNode:', targetElement.parentNode);
+                    console.log('iframe内のリンク要素:', iframeDoc.querySelector('a[href="https://mobilus.co.jp/"]'));
+                } else {
+                    console.warn('iframe内に指定されたクラス名の要素が見つかりませんでした');
+                    console.log('iframe内の全ての要素:', iframeDoc.body ? iframeDoc.body.innerHTML : 'bodyが見つかりません');
+                }
+            } catch (error) {
+                console.error('iframe内容へのアクセスエラー:', error);
+            }
+        };
+
+        // 即座に一度試行
+        processIframeContent();
+
+        // iframe内の変更を監視
+        const observer = new MutationObserver(() => {
+            processIframeContent();
+        });
+
+        // iframe自体の変更を監視
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // iframe内部の監視も設定（可能な場合）
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            if (iframeDoc && iframeDoc.body) {
+                observer.observe(iframeDoc.body, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+        } catch (error) {
+            console.log('iframe内部の監視設定に失敗:', error);
+        }
+
+        // loadイベントも念のため設定
+        iframe.addEventListener('load', processIframeContent);
+    }
     </script>
 </body>
 </html>
