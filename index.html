@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +8,77 @@
 <body>
     <script type="text/javascript" charset="UTF-8" src="https://mbwac.dev-mobilus.chat/web/mobi-agent-client-frame-loader.min.js?domainId=iimuratest2"></script>
     <script>
+        const chatBody = document.querySelector('body');
+
+        // シンプルなテキストリンクを挿入する場合
+        const bannerHtml = `<a href="https://example.com" target="_blank">サポートページ</a>`;
+
+
+        chatBody.insertAdjacentHTML('afterbegin', bannerHtml);
+        
+          // チャット小窓の状態を表すフラグ（修正しないでください）
+  /*
+  MobiChatのフレームの状態 (initializing | banner | chat)
+  initializing: 初期化中
+  banner: バナーが表示されている
+  chat: MobiChatが表示されている
+  */
+  let agentStatus = 'initializing';
+
+  //banner
+  const chatBnr = document.getElementById('supportBnr');
+  //closeボタン
+  const chatClose = document.getElementById('supportBnr-close');
+  //banner画像
+  const chatBnrImg = document.getElementById('supportBnr-img');
+
+  function showMobiChat(show) {
+    document.getElementById('konnect-container').style.display = show ? '' : "none";
+  }
+
+  function showBanner(show) {
+    chatBnr.style.display = show ? "block" : "none";
+  }
+
+  chatClose.addEventListener('click', function () {
+    showBanner(false);
+  });
+
+  chatBnrImg.addEventListener('click', function () {
+    switch (agentStatus) {
+      case 'initializing':
+        break;
+
+      case 'banner':
+        // 小窓を起動する
+        MobiAgentClient.toggle(true);
+        break;
+
+      case 'chat':
+        // 小窓を閉じる
+        MobiAgentClient.toggle(false);
+        break;
+    }
+  });
+
+  /*
+  operation == chat => チャット小窓を開く + 起動アイコンを隠す
+  operation == banner => チャット小窓を閉じる + 起動アイコンを表示する
+  */
+  function openFrame(operation) {
+    agentStatus = operation;
+    showBanner(operation === 'banner');
+    showMobiChat(operation === 'chat');
+  }
+
+  MobiAgentClient.on('openFrame', function (data) {
+    openFrame('chat')
+  });
+  MobiAgentClient.on('closeFrame', function (data) {
+    openFrame('banner')
+  });
+  /////////////////////////
+        //本体読み込み
     document.addEventListener("DOMContentLoaded", function() {
     MobiAgentClient.init(
         'https://mbwac.dev-mobilus.chat', // server url
@@ -17,24 +88,5 @@
     );
     });
     </script>
-    <script>
-        window.addEventListener('DOMContentLoaded', () => {
-        const iframe = document.querySelector('iframe');
-
-        try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            const testElement = iframeDoc.createElement('div');
-            testElement.textContent = 'DOMアクセス成功';
-            testElement.style.background = 'yellow';
-            testElement.style.padding = '10px';
-            iframeDoc.body.appendChild(testElement);
-            console.log('iframe内のDOMにアクセスできました');
-        } catch (e) {
-            console.error('iframe内のDOMにアクセスできません:', e);
-        }
-        });
-    </script>
-
-
 </body>
 </html>
