@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,5 +17,24 @@
     );
     });
     </script>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+        const iframe = document.querySelector('iframe');
+
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const testElement = iframeDoc.createElement('div');
+            testElement.textContent = 'DOMアクセス成功';
+            testElement.style.background = 'yellow';
+            testElement.style.padding = '10px';
+            iframeDoc.body.appendChild(testElement);
+            console.log('iframe内のDOMにアクセスできました');
+        } catch (e) {
+            console.error('iframe内のDOMにアクセスできません:', e);
+        }
+        });
+    </script>
+
+
 </body>
 </html>
